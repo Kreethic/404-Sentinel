@@ -19,6 +19,8 @@ console = Console()
 
 class ReportSaver:
     """Handles saving analysis reports to disk in human-readable format."""
+    LINE_WIDTH = 80
+    CONTENT_WIDTH = 76
     
     def __init__(self):
         self.reports_dir = self._ensure_reports_dir()
@@ -29,24 +31,34 @@ class ReportSaver:
         Path(reports_path).mkdir(parents=True, exist_ok=True)
         return reports_path
     
+    def _pad_line(self, content: str) -> str:
+        """Pad line to exact width."""
+        return content.ljust(self.CONTENT_WIDTH)
+    
+    def _box_line(self, content: str = "") -> str:
+        """Create a box line with content."""
+        if content:
+            return "│ " + self._pad_line(content)[:-1] + " │"
+        return "│" + self._pad_line("") + "│"
+    
     def _format_human_readable(self, module_name: str, data: Dict[str, Any], target: Optional[str]) -> str:
         """Format report data into human-readable cybersecurity theme."""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         report = []
-        report.append("╔" + "═" * 78 + "╗")
-        report.append("║" + " " * 78 + "║")
-        report.append("║" + "404 SENTINEL - THREAT INTELLIGENCE REPORT".center(78) + "║")
-        report.append("║" + " " * 78 + "║")
-        report.append("╚" + "═" * 78 + "╝")
+        report.append("╔" + "═" * self.CONTENT_WIDTH + "╗")
+        report.append(self._box_line("404 SENTINEL - THREAT INTELLIGENCE REPORT"))
+        report.append("╚" + "═" * self.CONTENT_WIDTH + "╝")
         report.append("")
         
         # Header Info
-        report.append("┌─ REPORT METADATA " + "─" * 60 + "┐")
-        report.append(f"│ Module          : {module_name.replace('_', ' ').title():<58} │")
-        report.append(f"│ Target          : {str(target)[:58]:<58} │")
-        report.append(f"│ Generated       : {timestamp:<58} │")
-        report.append("└" + "─" * 77 + "┘")
+        title = "REPORT METADATA"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        report.append("┌─ " + title + " " + "─" * spaces + "┐")
+        report.append(self._box_line(f"Module          : {module_name.replace('_', ' ').title()}"))
+        report.append(self._box_line(f"Target          : {str(target) if target else 'N/A'}"))
+        report.append(self._box_line(f"Generated       : {timestamp}"))
+        report.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         report.append("")
         
         # Parse different module types
@@ -71,58 +83,68 @@ class ReportSaver:
         
         # Footer
         report.append("")
-        report.append("┌" + "─" * 77 + "┐")
-        report.append("│ End of Report - 404 SENTINEL Threat Intelligence Platform          │")
-        report.append("└" + "─" * 77 + "┘")
+        report.append("╔" + "═" * self.CONTENT_WIDTH + "╗")
+        report.append(self._box_line("END OF REPORT"))
+        report.append("╚" + "═" * self.CONTENT_WIDTH + "╝")
         
         return "\n".join(report)
     
     def _format_ip_reputation(self, data: Dict) -> list:
         """Format IP reputation report."""
         lines = []
-        lines.append("┌─ IP/DOMAIN REPUTATION ANALYSIS " + "─" * 44 + "┐")
+        title = "IP/DOMAIN REPUTATION ANALYSIS"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
-        target = data.get("target", "N/A")
         target_type = data.get("type", "N/A")
-        lines.append(f"│ Target Type     : {target_type:<58} │")
+        lines.append(self._box_line(f"Target Type     : {target_type}"))
         
         # AbuseIPDB
         abuse = data.get("abuseipdb") or {}
         if abuse:
-            lines.append(f"│ Abuse Score     : {str(abuse.get('abuse_confidence_score', 'N/A'))}/100 {'[HIGH RISK]' if abuse.get('abuse_confidence_score', 0) > 75 else '[SUSPICIOUS]' if abuse.get('abuse_confidence_score', 0) > 25 else '[CLEAN]':<33}")
-            lines.append(f"│ Reports         : {str(abuse.get('total_reports', 0)):<58} │")
-            lines.append(f"│ ISP             : {str(abuse.get('isp', 'N/A'))[:58]:<58} │")
-            lines.append(f"│ Country         : {str(abuse.get('country_code', 'N/A')):<58} │")
+            score = abuse.get('abuse_confidence_score', 0)
+            if score > 75:
+                risk = "[HIGH RISK]"
+            elif score > 25:
+                risk = "[SUSPICIOUS]"
+            else:
+                risk = "[CLEAN]"
+            lines.append(self._box_line(f"Abuse Score     : {score}/100 {risk}"))
+            lines.append(self._box_line(f"Reports         : {abuse.get('total_reports', 0)}"))
+            lines.append(self._box_line(f"ISP             : {abuse.get('isp', 'N/A')}"))
+            lines.append(self._box_line(f"Country         : {abuse.get('country_code', 'N/A')}"))
         
         # VirusTotal
         vt = data.get("virustotal") or {}
         if vt:
-            lines.append(f"│ VirusTotal Hits : {str(vt.get('malicious', 0))}/90 engines detected │")
+            lines.append(self._box_line(f"VirusTotal      : {vt.get('malicious', 0)}/90 detected"))
         
         # OTX
         otx = data.get("otx") or {}
         if otx:
-            lines.append(f"│ OTX Pulses      : {str(len(otx.get('pulses', []))):<58} │")
+            lines.append(self._box_line(f"OTX Pulses      : {len(otx.get('pulses', []))}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_phishing_detector(self, data: Dict) -> list:
         """Format phishing detector report."""
         lines = []
-        lines.append("┌─ PHISHING URL ANALYSIS " + "─" * 53 + "┐")
+        title = "PHISHING URL ANALYSIS"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
         is_phishing = data.get("is_phishing", False)
         phishing_score = data.get("phishing_score", 0)
         
         risk_label = "[CRITICAL PHISHING]" if is_phishing else "[SAFE]"
-        lines.append(f"│ Status          : {risk_label:<58} │")
-        lines.append(f"│ Phishing Score  : {phishing_score}/100                                         │")
+        lines.append(self._box_line(f"Status          : {risk_label}"))
+        lines.append(self._box_line(f"Phishing Score  : {phishing_score}/100"))
         
         categories = data.get("categories", [])
         if categories:
             cat_str = ", ".join(categories[:3])
-            lines.append(f"│ Categories      : {cat_str[:58]:<58} │")
+            lines.append(self._box_line(f"Categories      : {cat_str}"))
         
         # Detections
         detections = []
@@ -141,131 +163,143 @@ class ReportSaver:
         
         if detections:
             det_str = ", ".join(detections[:2])
-            lines.append(f"│ Detected By     : {det_str[:58]:<58} │")
+            lines.append(self._box_line(f"Detected By     : {det_str}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_email_analyzer(self, data: Dict) -> list:
         """Format email analyzer report."""
         lines = []
-        lines.append("┌─ EMAIL HEADER ANALYSIS " + "─" * 53 + "┐")
+        title = "EMAIL HEADER ANALYSIS"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
         spf_status = data.get("spf_status", "UNKNOWN")
         dkim_status = data.get("dkim_status", "UNKNOWN")
         dmarc_status = data.get("dmarc_status", "UNKNOWN")
         
-        lines.append(f"│ SPF Status      : {spf_status:<58} │")
-        lines.append(f"│ DKIM Status     : {dkim_status:<58} │")
-        lines.append(f"│ DMARC Status    : {dmarc_status:<58} │")
+        lines.append(self._box_line(f"SPF Status      : {spf_status}"))
+        lines.append(self._box_line(f"DKIM Status     : {dkim_status}"))
+        lines.append(self._box_line(f"DMARC Status    : {dmarc_status}"))
         
         from_addr = data.get("from", "N/A")
-        lines.append(f"│ From Address    : {str(from_addr)[:58]:<58} │")
+        lines.append(self._box_line(f"From Address    : {str(from_addr)[:60]}"))
         
         spoofing_risk = data.get("spoofing_risk", "Unknown")
-        lines.append(f"│ Spoofing Risk   : {spoofing_risk:<58} │")
+        lines.append(self._box_line(f"Spoofing Risk   : {spoofing_risk}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_domain_analyzer(self, data: Dict) -> list:
         """Format domain analyzer report."""
         lines = []
-        lines.append("┌─ DOMAIN/WHOIS ANALYSIS " + "─" * 53 + "┐")
+        title = "DOMAIN/WHOIS ANALYSIS"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
         domain = data.get("domain", "N/A")
-        lines.append(f"│ Domain          : {domain:<58} │")
+        lines.append(self._box_line(f"Domain          : {domain}"))
         
         registrar = data.get("registrar", "N/A")
-        lines.append(f"│ Registrar       : {str(registrar)[:58]:<58} │")
+        lines.append(self._box_line(f"Registrar       : {str(registrar)[:60]}"))
         
         created = data.get("created_date", "N/A")
-        lines.append(f"│ Created Date    : {str(created)[:58]:<58} │")
+        lines.append(self._box_line(f"Created Date    : {str(created)[:60]}"))
         
         expires = data.get("expiration_date", "N/A")
-        lines.append(f"│ Expires         : {str(expires)[:58]:<58} │")
+        lines.append(self._box_line(f"Expires         : {str(expires)[:60]}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_file_analyzer(self, data: Dict) -> list:
         """Format file analyzer report."""
         lines = []
-        lines.append("┌─ FILE/HASH ANALYSIS " + "─" * 56 + "┐")
+        title = "FILE/HASH ANALYSIS"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
         if "md5" in data:
-            lines.append(f"│ MD5             : {data.get('md5', 'N/A'):<58} │")
+            lines.append(self._box_line(f"MD5             : {data.get('md5', 'N/A')}"))
         if "sha1" in data:
-            lines.append(f"│ SHA1            : {data.get('sha1', 'N/A'):<58} │")
+            lines.append(self._box_line(f"SHA1            : {data.get('sha1', 'N/A')}"))
         if "sha256" in data:
-            lines.append(f"│ SHA256          : {data.get('sha256', 'N/A')[:58]:<58} │")
+            lines.append(self._box_line(f"SHA256          : {data.get('sha256', 'N/A')[:60]}"))
         
         vt_results = data.get("virustotal", {})
         if vt_results:
             malicious = vt_results.get("malicious", 0)
             suspicious = vt_results.get("suspicious", 0)
-            lines.append(f"│ VirusTotal      : {malicious} malicious, {suspicious} suspicious     │")
+            lines.append(self._box_line(f"VirusTotal      : {malicious} malicious, {suspicious} suspicious"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_subdomain_analyzer(self, data: Dict) -> list:
         """Format subdomain analyzer report."""
         lines = []
-        lines.append("┌─ SUBDOMAIN ENUMERATION " + "─" * 53 + "┐")
+        title = "SUBDOMAIN ENUMERATION"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
         domain = data.get("domain", "N/A")
-        lines.append(f"│ Domain          : {domain:<58} │")
+        lines.append(self._box_line(f"Domain          : {domain}"))
         
         total = data.get("total_found", 0)
         active = data.get("active_count", 0)
-        lines.append(f"│ Subdomains Found: {total} total, {active} active                     │")
+        lines.append(self._box_line(f"Subdomains Found: {total} found, {active} active"))
         
         methods = data.get("methods_used", [])
         if methods:
             methods_str = ", ".join(methods[:2])
-            lines.append(f"│ Methods Used    : {methods_str[:58]:<58} │")
+            lines.append(self._box_line(f"Methods Used    : {methods_str}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_risk_scorer(self, data: Dict) -> list:
         """Format risk scorer report."""
         lines = []
-        lines.append("┌─ UNIFIED RISK SCORE REPORT " + "─" * 49 + "┐")
-        lines.append("│ (Full threat intelligence aggregation)                                     │")
-        lines.append("└" + "─" * 77 + "┘")
+        title = "UNIFIED RISK SCORE REPORT"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
+        lines.append(self._box_line("Full threat intelligence aggregation"))
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_batch_scan(self, data: Dict) -> list:
         """Format batch scan report."""
         lines = []
-        lines.append("┌─ BATCH SCAN SUMMARY " + "─" * 56 + "┐")
+        title = "BATCH SCAN SUMMARY"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
         targets = data.get("targets_analyzed", 0)
-        lines.append(f"│ Targets Scanned : {targets:<58} │")
+        lines.append(self._box_line(f"Targets Scanned : {targets}"))
         
         results = data.get("results", [])
         if results:
             high_risk = sum(1 for r in results if r.get("score", 0) > 60)
-            lines.append(f"│ High Risk Found : {high_risk:<58} │")
+            lines.append(self._box_line(f"High Risk Found : {high_risk}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def _format_generic(self, data: Dict) -> list:
         """Format generic report."""
         lines = []
-        lines.append("┌─ ANALYSIS DATA " + "─" * 61 + "┐")
-        lines.append("│ Key                              | Value                               │")
-        lines.append("├" + "─" * 77 + "┤")
+        title = "ANALYSIS DATA"
+        spaces = self.CONTENT_WIDTH - len(title) - 4
+        lines.append("┌─ " + title + " " + "─" * spaces + "┐")
         
-        for key, value in list(data.items())[:10]:
-            key_str = str(key)[:30]
-            val_str = str(value)[:42]
-            lines.append(f"│ {key_str:<32} | {val_str:<42} │")
+        for key, value in list(data.items())[:15]:
+            key_str = str(key)[:20]
+            val_str = str(value)[:50]
+            lines.append(self._box_line(f"{key_str:<20} : {val_str}"))
         
-        lines.append("└" + "─" * 77 + "┘")
+        lines.append("└" + "─" * self.CONTENT_WIDTH + "┘")
         return lines
     
     def save_report(self, module_name: str, data: Dict[str, Any], target: Optional[str] = None) -> str:
