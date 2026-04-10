@@ -1,0 +1,23 @@
+# Cyber Sentinel — Requirements
+# Install with: pip install -r requirements.txt
+
+# Rich terminal UI
+rich>=13.7.0
+
+# HTTP client for API calls
+requests>=2.31.0
+
+# Optional: async support for parallel API calls
+# aiohttp>=3.9.0
+
+# Optional: DNS lookups (SPF, MX, etc.)
+# dnspython>=2.4.2
+
+# Optional: WHOIS lookups
+# python-whois>=0.8.0
+
+# Optional: enhanced email parsing
+# mail-parser>=3.15.0
+
+# Optional: export to JSON/CSV
+# tabulate>=0.9.0
