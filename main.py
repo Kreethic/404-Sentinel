@@ -95,6 +95,8 @@ BANNER = """
 ╚════██║██╔══╝  ██║╚██╗██║   ██║   ██║██║╚██╗██║██╔══╝  ██║     
 ███████║███████╗██║ ╚████║   ██║   ██║██║ ╚████║███████╗███████╗
 ╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝[/bold yellow]
+
+                                -Powered by Team 404
 """
 
 TAGLINE = "[dim]Threat Intelligence Platform • v1.0.0 •[/dim]"
@@ -321,8 +323,8 @@ def run_cli(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="cyber-sentinel",
-        description="Cyber Sentinel - Threat Intelligence Platform",
+        prog="404-sentinel",
+        description="404 Sentinel - Threat Intelligence Platform",
     )
     parser.add_argument("--ip", metavar="IP/DOMAIN", help="Check IP or domain reputation")
     parser.add_argument("--url", metavar="URL", help="Check URL for phishing")
