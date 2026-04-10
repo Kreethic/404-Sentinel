@@ -120,12 +120,14 @@ class SubdomainEnumerator:
                             if name and name != domain:
                                 # Remove wildcard prefix if present
                                 clean_name = name.replace('*.', '')
-                                subdomains[clean_name] = {
-                                    "source": "Certificate Transparency",
-                                    "active": None,
-                                    "ip": None,
-                                    "http_status": None
-                                }
+                                # Validate before adding
+                                if self._is_valid_subdomain(clean_name):
+                                    subdomains[clean_name] = {
+                                        "source": "Certificate Transparency",
+                                        "active": None,
+                                        "ip": None,
+                                        "http_status": None
+                                    }
                 except (ValueError, KeyError):
                     pass
         except (requests.Timeout, requests.ConnectionError, Exception):
@@ -246,12 +248,32 @@ class SubdomainEnumerator:
         ]
         return common_subs
 
+    def _is_valid_subdomain(self, subdomain: str) -> bool:
+        """Validate subdomain format before DNS resolution."""
+        if not subdomain or len(subdomain) > 253:
+            return False
+        
+        # Check each label in the domain
+        labels = subdomain.split('.')
+        for label in labels:
+            if not label or len(label) > 63:
+                return False
+            # Must start and end with alphanumeric, can contain hyphens
+            if not re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$', label):
+                return False
+        
+        return True
+
     def _resolve_subdomain(self, subdomain: str) -> Optional[str]:
         """Resolve subdomain to IP address."""
+        # Validate before attempting resolution
+        if not self._is_valid_subdomain(subdomain):
+            return None
+        
         try:
             ip = socket.gethostbyname(subdomain)
             return ip if ip else None
-        except (socket.gaierror, socket.timeout):
+        except (socket.gaierror, socket.timeout, UnicodeError):
             return None
 
     def _check_http(self, subdomain: str) -> Optional[int]:
