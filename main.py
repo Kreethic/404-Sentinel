@@ -96,7 +96,7 @@ BANNER = """
 ███████║███████╗██║ ╚████║   ██║   ██║██║ ╚████║███████╗███████╗
 ╚══════╝╚══════╝╚═╝  ╚═══╝   ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝[/bold yellow]
 
-                                -Powered by Team 404
+                                             -Powered by Team 404
 """
 
 TAGLINE = "[dim]Threat Intelligence Platform • v1.0.0 •[/dim]"
