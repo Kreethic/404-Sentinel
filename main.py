@@ -37,6 +37,7 @@ try:
     from modules.domain_whois_analyzer import create_domain_analyzer
     from modules.file_hash_analyzer import create_file_analyzer
     from modules.subdomain_enumerator import create_subdomain_enumerator
+    from modules.report_saver import save_report
 except ModuleNotFoundError as e:
     print(f"[ERROR] Cannot find modules: {e}")
     print(f"[INFO] Script location: {script_dir}")
@@ -52,6 +53,30 @@ except ModuleNotFoundError as e:
 from config import Config
 
 console = Console()
+
+
+def prompt_save_report(module_name: str, data: dict, target: str) -> bool:
+    """
+    Ask user if they want to save the report.
+    
+    Args:
+        module_name: Name of the module for filename
+        data: Report data to save
+        target: Target being analyzed
+    
+    Returns:
+        True if saved, False otherwise
+    """
+    save_choice = Prompt.ask(
+        "[bold cyan]Save report?[/bold cyan]",
+        choices=["y", "n"],
+        default="n"
+    )
+    
+    if save_choice.lower() == "y":
+        save_report(module_name, data, target)
+        return True
+    return False
 
 
 BANNER = """
@@ -135,12 +160,14 @@ def run_interactive():
         elif choice == "1":
             target = Prompt.ask("[bold]Enter IP address or domain[/bold]")
             if target:
-                ip_checker.analyze(target.strip())
+                result = ip_checker.analyze(target.strip())
+                prompt_save_report("ip_reputation", result, target.strip())
 
         elif choice == "2":
             url = Prompt.ask("[bold]Enter URL to check[/bold]")
             if url:
-                phishing_detector.analyze(url.strip())
+                result = phishing_detector.analyze(url.strip())
+                prompt_save_report("phishing_detector", result, url.strip())
 
         elif choice == "3":
             console.print("[dim]Provide path to .eml file OR paste raw headers (empty line to finish):[/dim]")
@@ -154,20 +181,24 @@ def run_interactive():
                         break
                     lines.append(line)
                 raw_headers = "\n".join(lines)
-                email_analyzer.analyze_raw(raw_headers)
+                result = email_analyzer.analyze_raw(raw_headers)
+                prompt_save_report("email_analyzer", result, "raw_headers")
             else:
-                email_analyzer.analyze_file(source.strip())
+                result = email_analyzer.analyze_file(source.strip())
+                prompt_save_report("email_analyzer", result, source.strip())
 
         elif choice == "4":
             target = Prompt.ask("[bold]Enter IP, domain, or URL for full risk analysis[/bold]")
             if target:
-                risk_scorer.full_report(target.strip())
+                result = risk_scorer.full_report(target.strip())
+                prompt_save_report("risk_scorer", result, target.strip())
 
         elif choice == "5":
             domain = Prompt.ask("[bold]Enter domain name to analyze[/bold]")
             if domain:
                 result = domain_analyzer.analyze_domain(domain.strip())
                 domain_analyzer.display_report(result)
+                prompt_save_report("domain_whois_analyzer", result, domain.strip())
 
         elif choice == "6":
             console.print("\n[bold cyan]File/Hash Analysis Mode[/bold cyan]")
@@ -180,6 +211,7 @@ def run_interactive():
                 if file_path and os.path.exists(file_path):
                     result = file_analyzer.analyze_file(file_path)
                     file_analyzer.display_file_report(result)
+                    prompt_save_report("file_hash_analyzer", result, file_path)
                 else:
                     console.print("[red]File not found.[/red]")
             else:
@@ -187,17 +219,20 @@ def run_interactive():
                 if hash_value:
                     result = file_analyzer.analyze_hash(hash_value.strip())
                     file_analyzer.display_hash_report(result)
+                    prompt_save_report("file_hash_analyzer", result, hash_value.strip())
 
         elif choice == "7":
             domain = Prompt.ask("[bold]Enter domain for subdomain enumeration[/bold]")
             if domain:
                 result = subdomain_enumerator.enumerate(domain.strip())
                 subdomain_enumerator.display_report(result)
+                prompt_save_report("subdomain_enumerator", result, domain.strip())
 
         elif choice == "8":
             filepath = Prompt.ask("[bold]Path to targets file (one per line)[/bold]")
             if filepath:
-                run_batch(filepath, ip_checker, phishing_detector, risk_scorer)
+                result = run_batch(filepath, ip_checker, phishing_detector, risk_scorer)
+                prompt_save_report("batch_scan", result, filepath)
 
         else:
             console.print("[red]Invalid option. Please try again.[/red]")
@@ -206,7 +241,7 @@ def run_interactive():
 def run_batch(filepath: str, ip_checker, phishing_detector, risk_scorer):
     if not os.path.exists(filepath):
         console.print(f"[red]File not found: {filepath}[/red]")
-        return
+        return {}
 
     with open(filepath, encoding='utf-8', errors='replace') as f:
         targets = [line.strip() for line in f if line.strip() and not line.startswith("#")]
@@ -225,8 +260,10 @@ def run_batch(filepath: str, ip_checker, phishing_detector, risk_scorer):
     summary.add_column("Verdict", justify="center", width=15)
     summary.add_column("Flags", style="dim", width=30)
 
+    batch_results = []
     for target in targets:
         result = risk_scorer.quick_score(target)
+        batch_results.append(result)
         score = result["score"]
         verdict = result["verdict"]
         flags = ", ".join(result["flags"][:3]) if result["flags"] else "None"
@@ -243,6 +280,8 @@ def run_batch(filepath: str, ip_checker, phishing_detector, risk_scorer):
         )
 
     console.print(summary)
+    
+    return {"targets_analyzed": len(targets), "results": batch_results}
 
 
 def run_cli(args):
