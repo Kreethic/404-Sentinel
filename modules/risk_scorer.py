@@ -109,6 +109,8 @@ class RiskScorer:
 
         # ── Aggregate scoring ────────────────────────────────────────────────
         self._print_aggregate_report(target, all_results)
+        
+        return all_results
 
     def quick_score(self, target: str) -> dict:
         """Fast scoring without printing — used by batch scanner."""
