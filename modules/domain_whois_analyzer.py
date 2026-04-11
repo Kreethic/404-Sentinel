@@ -467,6 +467,12 @@ class DomainWhoisAnalyzer:
 
     def display_report(self, analysis: Dict[str, Any]):
         """Display formatted WHOIS-style report in terminal."""
+        def safe_str(value):
+            """Convert lists to strings, return other values as-is."""
+            if isinstance(value, list):
+                return ", ".join(str(v) for v in value if v) if value else "Unknown"
+            return value
+        
         if analysis.get("status") == "error":
             console.print(Panel(
                 f"[red]Error:[/red] {analysis.get('message')}",
@@ -495,15 +501,12 @@ class DomainWhoisAnalyzer:
         registrar_table = Table(title="Registrar Information", box=box.ROUNDED, border_style="cyan")
         registrar_table.add_column("Property", style="bold cyan", width=20)
         registrar_table.add_column("Value", style="white")
-        registrar_table.add_row("Registrar", whois.get("registrar", "N/A"))
+        registrar_table.add_row("Registrar", safe_str(whois.get("registrar", "N/A")))
         if whois.get("registrar_url"):
-            registrar_table.add_row("Registrar URL", whois.get("registrar_url"))
+            registrar_table.add_row("Registrar URL", safe_str(whois.get("registrar_url")))
         domain_status = whois.get("domain_status", "Unknown")
         if domain_status and domain_status != "Unknown":
-            # Convert list to string if needed (Rich expects string, not list)
-            if isinstance(domain_status, list):
-                domain_status = ", ".join(domain_status) if domain_status else "Unknown"
-            registrar_table.add_row("Domain Status", domain_status)
+            registrar_table.add_row("Domain Status", safe_str(domain_status))
         console.print(registrar_table)
 
         # ===== REGISTRANT CONTACT =====
@@ -511,15 +514,15 @@ class DomainWhoisAnalyzer:
         registrant_table.add_column("Property", style="bold magenta", width=20)
         registrant_table.add_column("Value", style="white")
         if whois.get("registrant_name"):
-            registrant_table.add_row("Name", whois.get("registrant_name"))
+            registrant_table.add_row("Name", safe_str(whois.get("registrant_name")))
         if whois.get("registrant_org"):
-            registrant_table.add_row("Organization", whois.get("registrant_org"))
+            registrant_table.add_row("Organization", safe_str(whois.get("registrant_org")))
         if whois.get("registrant_country"):
-            registrant_table.add_row("Country", whois.get("registrant_country"))
+            registrant_table.add_row("Country", safe_str(whois.get("registrant_country")))
         if whois.get("registrant_email"):
-            registrant_table.add_row("Email", whois.get("registrant_email"))
+            registrant_table.add_row("Email", safe_str(whois.get("registrant_email")))
         if whois.get("registrant_phone"):
-            registrant_table.add_row("Phone", whois.get("registrant_phone"))
+            registrant_table.add_row("Phone", safe_str(whois.get("registrant_phone")))
         console.print(registrant_table)
 
         # ===== ADMIN CONTACT =====
@@ -528,11 +531,11 @@ class DomainWhoisAnalyzer:
             admin_table.add_column("Property", style="bold blue", width=20)
             admin_table.add_column("Value", style="white")
             if whois.get("admin_name"):
-                admin_table.add_row("Name", whois.get("admin_name"))
+                admin_table.add_row("Name", safe_str(whois.get("admin_name")))
             if whois.get("admin_email"):
-                admin_table.add_row("Email", whois.get("admin_email"))
+                admin_table.add_row("Email", safe_str(whois.get("admin_email")))
             if whois.get("admin_phone"):
-                admin_table.add_row("Phone", whois.get("admin_phone"))
+                admin_table.add_row("Phone", safe_str(whois.get("admin_phone")))
             console.print(admin_table)
 
         # ===== TECH CONTACT =====
@@ -541,24 +544,24 @@ class DomainWhoisAnalyzer:
             tech_table.add_column("Property", style="bold yellow", width=20)
             tech_table.add_column("Value", style="white")
             if whois.get("tech_name"):
-                tech_table.add_row("Name", whois.get("tech_name"))
+                tech_table.add_row("Name", safe_str(whois.get("tech_name")))
             if whois.get("tech_email"):
-                tech_table.add_row("Email", whois.get("tech_email"))
+                tech_table.add_row("Email", safe_str(whois.get("tech_email")))
             if whois.get("tech_phone"):
-                tech_table.add_row("Phone", whois.get("tech_phone"))
+                tech_table.add_row("Phone", safe_str(whois.get("tech_phone")))
             console.print(tech_table)
 
         # ===== DOMAIN DATES & DNSSEC =====
         dates_table = Table(title="Important Dates & Status", box=box.ROUNDED, border_style="green")
         dates_table.add_column("Property", style="bold green", width=20)
         dates_table.add_column("Value", style="white")
-        dates_table.add_row("Created", whois.get("created_date", "N/A"))
-        dates_table.add_row("Updated", whois.get("updated_date", "N/A"))
-        dates_table.add_row("Expires", whois.get("expiry_date", "N/A"))
+        dates_table.add_row("Created", safe_str(whois.get("created_date", "N/A")))
+        dates_table.add_row("Updated", safe_str(whois.get("updated_date", "N/A")))
+        dates_table.add_row("Expires", safe_str(whois.get("expiry_date", "N/A")))
         privacy_status = "🔒 Enabled" if whois.get("privacy_enabled") else "🔓 Disabled"
         dates_table.add_row("Privacy Protection", privacy_status)
         dnssec_status = whois.get("dnssec", "Unknown")
-        dates_table.add_row("DNSSEC", dnssec_status)
+        dates_table.add_row("DNSSEC", safe_str(dnssec_status))
         console.print(dates_table)
 
         # ===== DOMAIN AGE =====
@@ -576,7 +579,7 @@ class DomainWhoisAnalyzer:
             ns_table.add_column("Nameserver", style="cyan")
             for ns in nameservers:
                 if ns and str(ns) not in ["None", ""]:
-                    ns_table.add_row(str(ns))
+                    ns_table.add_row(safe_str(ns))
             console.print(ns_table)
 
         # ===== DNS RECORDS =====
@@ -587,10 +590,10 @@ class DomainWhoisAnalyzer:
             dns_table.add_column("Value", style="white")
             for mx in dns.get("mx", []):
                 if mx and str(mx) not in ["None", ""]:
-                    dns_table.add_row("MX", str(mx))
+                    dns_table.add_row("MX", safe_str(mx))
             for a in dns.get("a", []):
                 if a and str(a) not in ["None", ""]:
-                    dns_table.add_row("A", str(a))
+                    dns_table.add_row("A", safe_str(a))
             console.print(dns_table)
 
         # ===== SSL CERTIFICATE =====
@@ -601,9 +604,9 @@ class DomainWhoisAnalyzer:
             ssl_table.add_column("Value", style="white")
             ssl_table.add_row("Valid", "✅ Yes")
             if ssl.get("issued_date"):
-                ssl_table.add_row("Issued", ssl.get("issued_date"))
+                ssl_table.add_row("Issued", safe_str(ssl.get("issued_date")))
             if ssl.get("expiry_date"):
-                ssl_table.add_row("Expires", ssl.get("expiry_date"))
+                ssl_table.add_row("Expires", safe_str(ssl.get("expiry_date")))
             console.print(ssl_table)
         else:
             console.print(Panel("[red]❌ No valid SSL certificate[/red]", title="SSL Certificate", border_style="red"))
