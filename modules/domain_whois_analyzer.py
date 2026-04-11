@@ -329,12 +329,12 @@ class DomainWhoisAnalyzer:
                 # Wrap socket with SSL
                 with context.wrap_socket(sock, server_hostname=domain) as ssock:
                     # Get peer certificate
-                    cert_der = ssock.getpeercert(binary_form=False)
+                    cert_dict = ssock.getpeercert(binary_form=False)
                     
-                    if not cert_der:
+                    if not cert_dict:
                         # Try getting DER format cert
-                        cert_der = ssock.getpeercert(binary_form=True)
-                        if not cert_der:
+                        cert_dict = ssock.getpeercert(binary_form=True)
+                        if not cert_dict:
                             return {
                                 "valid": False,
                                 "error": "No certificate found",
@@ -347,26 +347,30 @@ class DomainWhoisAnalyzer:
                     subject_dict = {}
                     
                     # Parse issuer
-                    if isinstance(cert_der, dict) and "issuer" in cert_der:
-                        issuer_list = cert_der.get("issuer", [])
+                    if isinstance(cert_dict, dict) and "issuer" in cert_dict:
+                        issuer_list = cert_dict.get("issuer", [])
                         for issuer_tuple in issuer_list:
                             for key, value in issuer_tuple:
                                 issuer_dict[key] = value
                     
                     # Parse subject
-                    if isinstance(cert_der, dict) and "subject" in cert_der:
-                        subject_list = cert_der.get("subject", [])
+                    if isinstance(cert_dict, dict) and "subject" in cert_dict:
+                        subject_list = cert_dict.get("subject", [])
                         for subject_tuple in subject_list:
                             for key, value in subject_tuple:
                                 subject_dict[key] = value
                     
+                    # Extract dates from certificate
+                    issued_date = cert_dict.get("notBefore", "Unknown") if isinstance(cert_dict, dict) else "Unknown"
+                    expiry_date = cert_dict.get("notAfter", "Unknown") if isinstance(cert_dict, dict) else "Unknown"
+                    
                     return {
                         "valid": True,
-                        "issuer": issuer_dict or "Unknown",
-                        "subject": subject_dict or "Unknown",
-                        "issued_date": cert_der.get("notBefore", "Unknown") if isinstance(cert_der, dict) else "Unknown",
-                        "expiry_date": cert_der.get("notAfter", "Unknown") if isinstance(cert_der, dict) else "Unknown",
-                        "san": cert_der.get("subjectAltName", []) if isinstance(cert_der, dict) else []
+                        "issuer": issuer_dict if issuer_dict else "Unknown",
+                        "subject": subject_dict if subject_dict else "Unknown",
+                        "issued_date": str(issued_date),
+                        "expiry_date": str(expiry_date),
+                        "san": cert_dict.get("subjectAltName", []) if isinstance(cert_dict, dict) else []
                     }
                     
         except socket.gaierror:
@@ -636,10 +640,13 @@ class DomainWhoisAnalyzer:
             ssl_table.add_column("Property", style="bold green", width=20)
             ssl_table.add_column("Value", style="white")
             ssl_table.add_row("Valid", "✅ Yes")
-            if ssl.get("issued_date"):
-                ssl_table.add_row("Issued", safe_str(ssl.get("issued_date")))
-            if ssl.get("expiry_date"):
-                ssl_table.add_row("Expires", safe_str(ssl.get("expiry_date")))
+            # Only display issued and expiry dates if they're not Unknown
+            issued_date = ssl.get("issued_date", "Unknown")
+            if issued_date and issued_date != "Unknown":
+                ssl_table.add_row("Issued", safe_str(issued_date))
+            expiry_date = ssl.get("expiry_date", "Unknown")
+            if expiry_date and expiry_date != "Unknown":
+                ssl_table.add_row("Expires", safe_str(expiry_date))
             console.print(ssl_table)
         else:
             # Show SSL error details
