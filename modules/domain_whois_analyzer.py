@@ -319,63 +319,96 @@ class DomainWhoisAnalyzer:
     def _get_ssl_info(self, domain: str) -> Dict[str, Any]:
         """Fetch SSL certificate information (Kali/Linux compatible)."""
         try:
-            # Create SSL context with lenient settings for compatibility
+            # Create SSL context with certificate verification disabled for testing
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             
-            # Attempt to connect with short timeout
-            try:
-                sock = socket.create_connection((domain, 443), timeout=3)
-            except (socket.timeout, socket.gaierror, OSError):
-                # Connection failed - domain might not support HTTPS
-                return {
-                    "valid": False,
-                    "error": "No HTTPS on this domain",
-                    "issuer": None,
-                    "subject": None,
-                }
-            
-            try:
-                with sock:
-                    # Wrap socket with SSL
-                    with context.wrap_socket(sock, server_hostname=domain) as ssock:
-                        cert = ssock.getpeercert()
-                        
-                        if not cert:
+            # Connect to domain on port 443
+            with socket.create_connection((domain, 443), timeout=5) as sock:
+                # Wrap socket with SSL
+                with context.wrap_socket(sock, server_hostname=domain) as ssock:
+                    # Get peer certificate
+                    cert_der = ssock.getpeercert(binary_form=False)
+                    
+                    if not cert_der:
+                        # Try getting DER format cert
+                        cert_der = ssock.getpeercert(binary_form=True)
+                        if not cert_der:
                             return {
                                 "valid": False,
                                 "error": "No certificate found",
                                 "issuer": None,
                                 "subject": None,
                             }
-                        
-                        return {
-                            "valid": True,
-                            "issuer": dict(x[0] for x in cert.get("issuer", []) if x),
-                            "subject": dict(x[0] for x in cert.get("subject", []) if x),
-                            "issued_date": cert.get("notBefore", "Unknown"),
-                            "expiry_date": cert.get("notAfter", "Unknown"),
-                            "san": cert.get("subjectAltName", [])
-                        }
-            except (ssl.SSLError, ssl.CertificateError) as e:
-                return {
-                    "valid": False,
-                    "error": f"SSL Error: {str(e)[:50]}",
-                    "issuer": None,
-                    "subject": None,
-                }
-            except Exception as e:
-                return {
-                    "valid": False,
-                    "error": f"Connection Error: {str(e)[:50]}",
-                    "issuer": None,
-                    "subject": None,
-                }
+                    
+                    # Successfully got certificate
+                    issuer_dict = {}
+                    subject_dict = {}
+                    
+                    # Parse issuer
+                    if isinstance(cert_der, dict) and "issuer" in cert_der:
+                        issuer_list = cert_der.get("issuer", [])
+                        for issuer_tuple in issuer_list:
+                            for key, value in issuer_tuple:
+                                issuer_dict[key] = value
+                    
+                    # Parse subject
+                    if isinstance(cert_der, dict) and "subject" in cert_der:
+                        subject_list = cert_der.get("subject", [])
+                        for subject_tuple in subject_list:
+                            for key, value in subject_tuple:
+                                subject_dict[key] = value
+                    
+                    return {
+                        "valid": True,
+                        "issuer": issuer_dict or "Unknown",
+                        "subject": subject_dict or "Unknown",
+                        "issued_date": cert_der.get("notBefore", "Unknown") if isinstance(cert_der, dict) else "Unknown",
+                        "expiry_date": cert_der.get("notAfter", "Unknown") if isinstance(cert_der, dict) else "Unknown",
+                        "san": cert_der.get("subjectAltName", []) if isinstance(cert_der, dict) else []
+                    }
+                    
+        except socket.gaierror:
+            return {
+                "valid": False,
+                "error": "Domain resolution failed",
+                "issuer": None,
+                "subject": None,
+            }
+        except socket.timeout:
+            return {
+                "valid": False,
+                "error": "Connection timeout (port 443 unreachable)",
+                "issuer": None,
+                "subject": None,
+            }
+        except ConnectionRefusedError:
+            return {
+                "valid": False,
+                "error": "HTTPS connection refused",
+                "issuer": None,
+                "subject": None,
+            }
+        except (ssl.SSLError, ssl.CertificateError) as e:
+            error_msg = str(e).split('\n')[0][:50]
+            return {
+                "valid": False,
+                "error": f"SSL Error: {error_msg}",
+                "issuer": None,
+                "subject": None,
+            }
+        except OSError as e:
+            return {
+                "valid": False,
+                "error": f"Connection failed: {str(e)[:40]}",
+                "issuer": None,
+                "subject": None,
+            }
         except Exception as e:
             return {
                 "valid": False,
-                "error": str(e)[:50],
+                "error": f"Error: {str(e)[:50]}",
                 "issuer": None,
                 "subject": None,
             }
@@ -494,7 +527,7 @@ class DomainWhoisAnalyzer:
             risk_color = "green"
 
         # Header with domain and risk
-        header = f"[bold cyan]Domain:[/bold cyan] {domain} | [bold {risk_color}]Risk: {risk_score}/100[/bold {risk_color}]"
+        header = f"[bold cyan]Domain:[/bold cyan] {safe_str(domain)} | [bold {risk_color}]Risk: {risk_score}/100[/bold {risk_color}]"
         console.print(Panel(header, title="🌐 WHOIS LOOKUP REPORT", border_style=risk_color))
 
         # ===== REGISTRAR & STATUS =====
@@ -559,7 +592,7 @@ class DomainWhoisAnalyzer:
         dates_table.add_row("Updated", safe_str(whois.get("updated_date", "N/A")))
         dates_table.add_row("Expires", safe_str(whois.get("expiry_date", "N/A")))
         privacy_status = "🔒 Enabled" if whois.get("privacy_enabled") else "🔓 Disabled"
-        dates_table.add_row("Privacy Protection", privacy_status)
+        dates_table.add_row("Privacy Protection", safe_str(privacy_status))
         dnssec_status = whois.get("dnssec", "Unknown")
         dates_table.add_row("DNSSEC", safe_str(dnssec_status))
         console.print(dates_table)
@@ -570,7 +603,7 @@ class DomainWhoisAnalyzer:
         if age_days:
             age_years = age_days / 365
             age_string = f"{age_days} days (~{age_years:.1f} years)"
-            console.print(f"\n[bold green]Domain Age:[/bold green] {age_string}")
+            console.print(f"\n[bold green]Domain Age:[/bold green] {safe_str(age_string)}")
 
         # ===== NAMESERVERS =====
         nameservers = whois.get("nameservers", [])
@@ -609,7 +642,14 @@ class DomainWhoisAnalyzer:
                 ssl_table.add_row("Expires", safe_str(ssl.get("expiry_date")))
             console.print(ssl_table)
         else:
-            console.print(Panel("[red]❌ No valid SSL certificate[/red]", title="SSL Certificate", border_style="red"))
+            # Show SSL error details
+            ssl_table = Table(title="SSL Certificate", box=box.ROUNDED, border_style="red")
+            ssl_table.add_column("Property", style="bold red", width=20)
+            ssl_table.add_column("Value", style="white")
+            ssl_table.add_row("Valid", "❌ No")
+            error_msg = ssl.get("error", "Certificate validation failed")
+            ssl_table.add_row("Error", safe_str(error_msg))
+            console.print(ssl_table)
 
         # ===== RISK INDICATORS =====
         console.print()
