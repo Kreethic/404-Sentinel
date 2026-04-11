@@ -500,6 +500,9 @@ class DomainWhoisAnalyzer:
             registrar_table.add_row("Registrar URL", whois.get("registrar_url"))
         domain_status = whois.get("domain_status", "Unknown")
         if domain_status and domain_status != "Unknown":
+            # Convert list to string if needed (Rich expects string, not list)
+            if isinstance(domain_status, list):
+                domain_status = ", ".join(domain_status) if domain_status else "Unknown"
             registrar_table.add_row("Domain Status", domain_status)
         console.print(registrar_table)
 
